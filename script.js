@@ -1,18 +1,36 @@
 /**
- * 求人検索ツール - script.js
+ * 勤務地検索ツール - script.js
  * サーバー不要・API不要・完全静的
- * 企業データはcompanies.jsonで管理（コード修正不要）
  */
 
-// ===== 状態管理 =====
 let allCompanies = [];
 let filtered = [];
 
-// ===== 初期化 =====
+const PREFECTURES = [
+  '北海道','青森県','岩手県','宮城県','秋田県','山形県','福島県',
+  '茨城県','栃木県','群馬県','埼玉県','千葉県','東京都','神奈川県',
+  '新潟県','富山県','石川県','福井県','山梨県','長野県','岐阜県',
+  '静岡県','愛知県','三重県','滋賀県','京都府','大阪府','兵庫県',
+  '奈良県','和歌山県','鳥取県','島根県','岡山県','広島県','山口県',
+  '徳島県','香川県','愛媛県','高知県','福岡県','佐賀県','長崎県',
+  '熊本県','大分県','宮崎県','鹿児島県','沖縄県'
+];
+
 document.addEventListener('DOMContentLoaded', () => {
+  buildPrefectureSelect();
   loadCompanies();
   initTabs();
 });
+
+function buildPrefectureSelect() {
+  const sel = document.getElementById('s_prefecture');
+  PREFECTURES.forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p;
+    opt.textContent = p;
+    sel.appendChild(opt);
+  });
+}
 
 async function loadCompanies() {
   try {
@@ -21,32 +39,29 @@ async function loadCompanies() {
     search();
     updateStatus(`企業データ ${allCompanies.length}件 読み込み完了`);
   } catch (e) {
-    showStatus('companies.json の読み込みに失敗しました。ファイルが同じフォルダにあるか確認してください。', 'error');
+    document.getElementById('results').innerHTML = `<div class="empty-state"><div class="icon">⚠️</div><div>companies.json の読み込みに失敗しました</div></div>`;
   }
 }
 
-// ===== 検索 =====
 function search() {
   const jobType = document.getElementById('s_jobType').value;
-  const area = document.getElementById('s_area').value.trim();
-  const carCommute = document.getElementById('s_carCommute').value;
+  const prefecture = document.getElementById('s_prefecture').value;
   const businessTrip = document.getElementById('s_businessTrip').value;
   const relocation = document.getElementById('s_relocation').value;
-  const mustRelocate = document.getElementById('s_mustRelocate').value;
-  const nightShift = document.getElementById('s_nightShift').value;
-  const salaryMin = parseInt(document.getElementById('s_salaryMin').value) || 0;
 
   filtered = allCompanies.filter(c => {
     if (jobType && !c.jobType.includes(jobType)) return false;
-    if (area && !c.area.includes(area) && !c.location.includes(area)) return false;
-    if (carCommute === 'true' && !c.carCommute) return false;
+    if (prefecture && c.prefecture !== prefecture) return false;
     if (businessTrip === 'false' && c.businessTrip) return false;
     if (relocation === 'false' && c.relocation) return false;
-    if (mustRelocate === 'false' && c.mustRelocate) return false;
-    if (nightShift === 'false' && c.nightShift) return false;
-    if (salaryMin > 0 && c.salaryMax < salaryMin) return false;
     return true;
   });
+
+  // 夜勤フィルター：エンジニアのみ表示
+  const nightShift = document.getElementById('s_nightShift').value;
+  if (nightShift === 'false' && jobType === 'エンジニア') {
+    filtered = filtered.filter(c => !c.nightShift);
+  }
 
   sortResults();
   renderResults();
@@ -70,7 +85,23 @@ function updateCount() {
   if (el) el.textContent = `${filtered.length} / ${allCompanies.length} 件`;
 }
 
-// ===== 描画 =====
+// 推薦ステータスの判定
+function getRecommendStatus(c) {
+  if (c.mustRelocate) {
+    return { label: '転居必須', cls: 'status-relocate', icon: '🏠', detail: '転居が必要です' };
+  }
+  if (c.commuteType === 'commute_only') {
+    return { label: '通勤可', cls: 'status-ok', icon: '✅', detail: `${c.commuteBase}まで${c.commuteMinutes}分圏内` };
+  }
+  if (c.commuteType === 'business_trip_ok') {
+    return { label: '出張可能なら推薦可', cls: 'status-trip', icon: '🚗', detail: `通勤限定不可・出張対応可` };
+  }
+  if (c.commuteType === 'must_relocate') {
+    return { label: '転居必須', cls: 'status-relocate', icon: '🏠', detail: '転居が必要です' };
+  }
+  return { label: '要確認', cls: 'status-check', icon: '❓', detail: '条件を確認してください' };
+}
+
 function renderResults() {
   const container = document.getElementById('results');
   if (filtered.length === 0) {
@@ -82,37 +113,54 @@ function renderResults() {
       </div>`;
     return;
   }
-  container.innerHTML = filtered.map(c => renderCard(c)).join('');
+  container.innerHTML = filtered.map((c, i) => renderCard(c, i + 1)).join('');
 }
 
-function renderCard(c) {
-  const salaryLabel = `${c.salaryMin}〜${c.salaryMax}万円`;
+function renderCard(c, index) {
+  const status = getRecommendStatus(c);
   const jobTypeTags = c.jobType.map(j => `<span class="tag tag-jobtype">${j}</span>`).join('');
+  const salaryLabel = `${c.salaryMin}〜${c.salaryMax}万円`;
 
-  const tags = [
-    { label: `出張：${c.businessTrip ? 'あり' : 'なし'}`, cls: c.businessTrip ? 'tag-warn' : 'tag-ok' },
-    { label: `転勤：${c.relocation ? 'あり' : 'なし'}`, cls: c.relocation ? 'tag-warn' : 'tag-ok' },
-    { label: `転居：${c.mustRelocate ? '必須' : '不要'}`, cls: c.mustRelocate ? 'tag-ng' : 'tag-ok' },
-    { label: `車通勤：${c.carCommute ? '可' : '不可'}`, cls: c.carCommute ? 'tag-ok' : 'tag-neutral' },
-    { label: `夜勤：${c.nightShift ? 'あり' : 'なし'}`, cls: c.nightShift ? 'tag-warn' : 'tag-ok' },
-    { label: `直行直帰：${c.flexibleWork ? '可' : '不可'}`, cls: c.flexibleWork ? 'tag-info' : 'tag-neutral' },
-  ].map(t => `<span class="tag ${t.cls}">${t.label}</span>`).join('');
+  const condTags = [
+    c.businessTrip ? `<span class="tag tag-warn">出張あり</span>` : `<span class="tag tag-ok">出張なし</span>`,
+    c.relocation ? `<span class="tag tag-warn">転勤あり</span>` : `<span class="tag tag-ok">転勤なし</span>`,
+    c.mustRelocate ? `<span class="tag tag-ng">転居必須</span>` : `<span class="tag tag-ok">転居不要</span>`,
+    c.nightShift ? `<span class="tag tag-warn">夜勤あり</span>` : '',
+  ].filter(Boolean).join('');
 
   return `
     <div class="company-card">
-      <div class="card-header">
-        <div class="card-title">
-          <div class="company-name">${escHtml(c.name)}</div>
-          <div class="company-location">📍 ${escHtml(c.location)}（${escHtml(c.area)}）</div>
+      <div class="card-top">
+        <div class="card-index">${index}</div>
+        <div class="card-main">
+          <div class="card-header-row">
+            <div class="company-name">${escHtml(c.name)}</div>
+            <div class="salary-badge">💴 ${salaryLabel}</div>
+          </div>
+          <div class="company-sub">
+            <span>📍 ${escHtml(c.location)}</span>
+            <span>🚉 ${escHtml(c.nearestStation)}</span>
+          </div>
         </div>
-        <div class="salary-badge">💴 ${salaryLabel}</div>
       </div>
+
+      <div class="status-banner ${status.cls}">
+        <span class="status-icon">${status.icon}</span>
+        <div class="status-body">
+          <div class="status-label">${status.label}</div>
+          <div class="status-detail">${status.detail}</div>
+        </div>
+        <div class="commute-time">
+          ${c.commuteBase}まで<br><strong>${c.commuteMinutes}分</strong>圏内
+        </div>
+      </div>
+
       <div class="card-tags">
         ${jobTypeTags}
-        ${tags}
+        ${condTags}
       </div>
-      <div class="card-station">🚉 ${escHtml(c.nearestStation)}</div>
-      ${c.memo ? `<div class="card-memo" style="margin-top:10px">📝 ${escHtml(c.memo)}</div>` : ''}
+
+      ${c.memo ? `<div class="card-memo">📝 ${escHtml(c.memo)}</div>` : ''}
     </div>`;
 }
 
@@ -124,7 +172,6 @@ function escHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
-// ===== タブ =====
 function initTabs() {
   document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -136,7 +183,6 @@ function initTabs() {
   });
 }
 
-// ===== ステータス =====
 function updateStatus(msg) {
   const el = document.getElementById('statusBar');
   if (!el) return;
@@ -145,14 +191,7 @@ function updateStatus(msg) {
   setTimeout(() => el.style.display = 'none', 3000);
 }
 
-function showStatus(msg, type) {
-  const el = document.getElementById('statusBar');
-  if (!el) return;
-  el.textContent = msg;
-  el.style.display = 'block';
-}
-
-// ===== 企業追加（JSONジェネレーター） =====
+// 企業追加JSONジェネレーター
 function generateJSON() {
   const getVal = id => document.getElementById(id)?.value?.trim() || '';
   const getInt = id => parseInt(document.getElementById(id)?.value) || 0;
@@ -163,14 +202,16 @@ function generateJSON() {
     id: Date.now(),
     name: getVal('f_name'),
     jobType: getMulti('f_jobType'),
+    prefecture: getVal('f_prefecture'),
     location: getVal('f_location'),
     area: getVal('f_area'),
     nearestStation: getVal('f_station'),
-    carCommute: getChk('f_carCommute'),
+    commuteBase: getVal('f_commuteBase'),
+    commuteMinutes: getInt('f_commuteMinutes'),
+    commuteType: getVal('f_commuteType'),
     businessTrip: getChk('f_businessTrip'),
     relocation: getChk('f_relocation'),
     mustRelocate: getChk('f_mustRelocate'),
-    flexibleWork: getChk('f_flexibleWork'),
     nightShift: getChk('f_nightShift'),
     salaryMin: getInt('f_salaryMin'),
     salaryMax: getInt('f_salaryMax'),
@@ -182,7 +223,6 @@ function generateJSON() {
   const json = JSON.stringify(company, null, 2);
   document.getElementById('jsonOutput').textContent = json;
   document.getElementById('jsonOutputArea').style.display = 'block';
-  document.getElementById('addInstruction').style.display = 'block';
 }
 
 function copyJSON() {
