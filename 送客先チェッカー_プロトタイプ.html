@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>送客先チェッカー（プロトタイプ）</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@500;700;900&family=Noto+Sans+JP:wght@400;500;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#1B2430;
+    --ink-soft:#4B5768;
+    --bg:#F2F4F7;
+    --surface:#FFFFFF;
+    --line:#DBE1E8;
+    --accent:#E8621A;
+    --accent-soft:#FFE9DB;
+    --success:#1E8F5F;
+    --success-soft:#E4F6ED;
+    --caution:#C6820A;
+    --caution-soft:#FCEFD3;
+    --near:#5B6472;
+    --near-soft:#EEF0F3;
+    --radius:10px;
+    --shadow:0 1px 2px rgba(27,36,48,0.06), 0 8px 24px rgba(27,36,48,0.05);
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'Noto Sans JP',sans-serif;
+    line-height:1.7;
+  }
+  .wrap{
+    max-width:880px;
+    margin:0 auto;
+    padding:40px 20px 100px;
+  }
+  header.page{
+    margin-bottom:28px;
+  }
+  .eyebrow{
+    font-family:'JetBrains Mono',monospace;
+    font-size:12px;
+    letter-spacing:0.14em;
+    color:var(--accent);
+    font-weight:700;
+    text-transform:uppercase;
+  }
+  h1{
+    font-family:'Zen Kaku Gothic New',sans-serif;
+    font-weight:900;
+    font-size:26px;
+    margin:6px 0 8px;
+  }
+  .lead{
+    color:var(--ink-soft);
+    font-size:14px;
+    margin:0;
+  }
+  .notice{
+    margin-top:16px;
+    padding:12px 16px;
+    background:var(--near-soft);
+    border:1px solid var(--line);
+    border-radius:8px;
+    font-size:12.5px;
+    color:var(--ink-soft);
+  }
+
+  /* ---- stepper (blueprint ruler) ---- */
+  .stepper{
+    display:flex;
+    align-items:flex-end;
+    margin:32px 0 24px;
+    position:relative;
+  }
+  .stepper::before{
+    content:"";
+    position:absolute;
+    left:0; right:0; bottom:16px;
+    height:2px;
+    background:var(--line);
+  }
+  .step-tick{
+    flex:1;
+    text-align:center;
+    position:relative;
+    z-index:1;
+  }
+  .step-tick .num{
+    width:32px; height:32px;
+    margin:0 auto 8px;
+    border-radius:50%;
+    background:var(--surface);
+    border:2px solid var(--line);
+    display:flex; align-items:center; justify-content:center;
+    font-family:'JetBrains Mono',monospace;
+    font-weight:700;
+    font-size:13px;
+    color:var(--near);
+  }
+  .step-tick.active .num{
+    border-color:var(--accent);
+    color:var(--accent);
+    background:var(--accent-soft);
+  }
+  .step-tick.done .num{
+    border-color:var(--success);
+    background:var(--success);
+    color:#fff;
+  }
+  .step-tick .label{
+    font-size:11px;
+    color:var(--ink-soft);
+    font-weight:500;
+  }
+  .step-tick.active .label{color:var(--ink); font-weight:700;}
+
+  /* ---- card / form ---- */
+  .card{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+    padding:32px;
+  }
+  .card h2{
+    font-family:'Zen Kaku Gothic New',sans-serif;
+    font-size:18px;
+    margin:0 0 4px;
+  }
+  .card .sub{
+    font-size:13px;
+    color:var(--ink-soft);
+    margin:0 0 24px;
+  }
+  .field{
+    margin-bottom:22px;
+  }
+  .field label.q{
+    display:block;
+    font-weight:700;
+    font-size:14px;
+    margin-bottom:8px;
+  }
+  select, input[type="number"], input[type="text"]{
+    width:100%;
+    padding:11px 12px;
+    border:1.5px solid var(--line);
+    border-radius:8px;
+    font-size:15px;
+    font-family:inherit;
+    background:#fff;
+    color:var(--ink);
+  }
+  select:focus, input:focus{
+    outline:2px solid var(--accent);
+    outline-offset:1px;
+    border-color:var(--accent);
+  }
+  .toggle-group{
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+  }
+  .toggle-btn{
+    flex:1;
+    min-width:110px;
+    padding:12px 10px;
+    border:1.5px solid var(--line);
+    border-radius:8px;
+    background:#fff;
+    font-size:14px;
+    font-weight:700;
+    color:var(--ink-soft);
+    cursor:pointer;
+    text-align:center;
+    transition:0.12s;
+  }
+  .toggle-btn:hover{border-color:var(--accent);}
+  .toggle-btn.selected{
+    border-color:var(--accent);
+    background:var(--accent-soft);
+    color:var(--accent);
+  }
+  .check-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill, minmax(160px,1fr));
+    gap:8px;
+  }
+  .check-item{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    padding:9px 10px;
+    border:1.5px solid var(--line);
+    border-radius:8px;
+    font-size:13.5px;
+    cursor:pointer;
+  }
+  .check-item:has(input:checked){
+    border-color:var(--accent);
+    background:var(--accent-soft);
+  }
+  .check-item input{width:16px;height:16px;}
+  .grid2{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:16px;
+  }
+  .nav-row{
+    display:flex;
+    justify-content:space-between;
+    margin-top:28px;
+  }
+  button.btn{
+    font-family:inherit;
+    font-size:14.5px;
+    font-weight:700;
+    padding:12px 22px;
+    border-radius:8px;
+    border:1.5px solid var(--line);
+    background:#fff;
+    color:var(--ink);
+    cursor:pointer;
+  }
+  button.btn.primary{
+    background:var(--accent);
+    border-color:var(--accent);
+    color:#fff;
+  }
+  button.btn:disabled{opacity:0.4; cursor:not-allowed;}
+
+  /* confirm */
+  .confirm-list{
+    list-style:none;
+    padding:0; margin:0 0 24px;
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px 24px;
+  }
+  .confirm-list li{
+    font-size:13.5px;
+    border-bottom:1px dashed var(--line);
+    padding-bottom:8px;
+  }
+  .confirm-list .k{color:var(--ink-soft); display:block; font-size:11.5px; margin-bottom:2px;}
+
+  /* results */
+  #results{margin-top:32px; display:none;}
+  .result-section-title{
+    font-family:'Zen Kaku Gothic New',sans-serif;
+    font-size:15px;
+    font-weight:700;
+    display:flex;
+    align-items:center;
+    gap:8px;
+    margin:28px 0 12px;
+  }
+  .badge{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    width:28px; height:28px;
+    border-radius:50%;
+    font-weight:900;
+    font-size:14px;
+    font-family:'JetBrains Mono',monospace;
+    flex-shrink:0;
+  }
+  .badge.ok{background:var(--success); color:#fff;}
+  .badge.warn{background:var(--caution); color:#fff;}
+  .badge.near{background:var(--near); color:#fff;}
+
+  .result-card{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-left:5px solid var(--line);
+    border-radius:8px;
+    padding:18px 20px;
+    margin-bottom:12px;
+  }
+  .result-card.ok{border-left-color:var(--success);}
+  .result-card.warn{border-left-color:var(--caution);}
+  .result-card.near{border-left-color:var(--near);}
+  .result-top{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:12px;
+  }
+  .result-top .company{
+    font-weight:700;
+    font-size:15.5px;
+  }
+  .result-top .meta{
+    font-size:12px;
+    color:var(--ink-soft);
+    margin-top:2px;
+  }
+  .reasons{
+    margin:10px 0 0;
+    padding-left:18px;
+    font-size:13px;
+    color:var(--ink-soft);
+  }
+  details.more{margin-top:10px;}
+  details.more summary{
+    cursor:pointer;
+    font-size:12.5px;
+    color:var(--accent);
+    font-weight:700;
+  }
+  .more-body{
+    margin-top:8px;
+    font-size:13px;
+    color:var(--ink-soft);
+    background:var(--bg);
+    border-radius:6px;
+    padding:10px 12px;
+  }
+  .more-body p{margin:4px 0;}
+  .empty{
+    text-align:center;
+    color:var(--ink-soft);
+    font-size:13.5px;
+    padding:20px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="page">
+    <div class="eyebrow">RA / CA共用 &mdash; 施工管理・エンジニア・製造</div>
+    <h1>送客先チェッカー</h1>
+    <p class="lead">候補者の条件を入力すると、送客できる企業を判定します。</p>
+    <div class="notice">※これはロジック確認用のプロトタイプです。企業データはサンプル10社（架空データ）です。実データ連携（スプレッドシート・パスワード認証等）は次のステップで組み込みます。</div>
+  </header>
+
+  <div class="stepper" id="stepper"></div>
+
+  <div class="card" id="wizardCard">
+    <!-- steps injected here -->
+  </div>
+
+  <div id="results"></div>
+
+</div>
+
+<script>
+/* =========================================================
+   1. マスタデータ（本来はスプレッドシート/選択肢マスタ由来）
+========================================================= */
+const PREFS = ["東京都","神奈川県","埼玉県","千葉県","愛知県","静岡県","岐阜県","大阪府","茨城県","群馬県"];
+const INDUSTRIES = ["施工管理","エンジニア","製造"];
+const JOB_TYPES = ["建築施工管理","土木施工管理","電気施工管理","設備エンジニア","機械設計","制御・電気設計","製造オペレーター","生産管理","品質管理"];
+const EDU_LEVELS = [
+  {v:"unquestioned", label:"不問", rank:0},
+  {v:"high", label:"高卒以上", rank:1},
+  {v:"vocational", label:"専門卒以上", rank:2},
+  {v:"university", label:"大卒以上", rank:3},
+];
+const EXP_LEVELS = [
+  {v:0, label:"未経験"},
+  {v:1, label:"1〜3年"},
+  {v:3, label:"3〜5年"},
+  {v:5, label:"5〜10年"},
+  {v:10, label:"10年以上"},
+];
+const SKILLS = ["施工管理経験","CAD操作","溶接","フォークリフト運転","現場管理経験","品質管理経験","生産管理経験","英語対応可"];
+const CERTS = ["1級施工管理技士","2級施工管理技士","電気工事士","クレーン運転士","玉掛け技能講習","QC検定","機械保全技能士","TOEIC600以上"];
+
+/* =========================================================
+   2. 求人マスタ（サンプル10社）
+========================================================= */
+const JOBS = [
+  {
+    id:"J001", company:"株式会社関東建設工業", industry:"施工管理", jobType:"建築施工管理",
+    requireType:"experienced", ageMin:22, ageMax:45, gender:"any", education:"high",
+    expYears:1, skills:["施工管理経験"], certs:[],
+    workStyle:"area", areas:["東京都","神奈川県","埼玉県","千葉県"], businessTripOk:false, licenseRequired:false,
+    appeal:"直行直帰OK、資格取得支援制度あり。若手の現場代理人登用実績多数。",
+    tips:"面接では「将来1級施工管理技士を取りたい」という意欲を伝えると通過率が上がります。",
+    status:"募集中"
+  },
+  {
+    id:"J002", company:"日本橋機電エンジニアリング", industry:"エンジニア", jobType:"機械設計",
+    requireType:"experienced", ageMin:24, ageMax:39, gender:"any", education:"vocational",
+    expYears:3, skills:["CAD操作"], certs:[],
+    workStyle:"commute", areas:["東京都"], businessTripOk:true, licenseRequired:false,
+    appeal:"フレックス制度あり。CAD経験を重視、業界未経験でも設計補助職からの中途採用実績あり。",
+    tips:"ポートフォリオ（過去の設計図面）を持参できると好印象。",
+    status:"募集中"
+  },
+  {
+    id:"J003", company:"中部製造ソリューションズ", industry:"製造", jobType:"製造オペレーター",
+    requireType:"inexperienced", ageMin:18, ageMax:35, gender:"any", education:"unquestioned",
+    expYears:0, skills:[], certs:[],
+    workStyle:"area", areas:["愛知県","静岡県","岐阜県"], businessTripOk:false, licenseRequired:true,
+    appeal:"未経験歓迎、寮完備。3ヶ月の研修期間中も給与保証あり。",
+    tips:"「長く続けたい」という定着意欲をアピールすると評価されやすいです。",
+    status:"募集中"
+  },
+  {
+    id:"J004", company:"全国インフラ工事株式会社", industry:"施工管理", jobType:"土木施工管理",
+    requireType:"experienced", ageMin:25, ageMax:50, gender:"any", education:"unquestioned",
+    expYears:5, skills:["施工管理経験","現場管理経験"], certs:["1級施工管理技士"],
+    workStyle:"nationwide", areas:["全国"], businessTripOk:true, licenseRequired:true,
+    appeal:"大型インフラ案件多数。転勤ごとに赴任手当あり、単身赴任サポート充実。",
+    tips:"転勤への前向きな姿勢と、大型案件への挑戦意欲を強調すると良い。",
+    status:"募集中"
+  },
+  {
+    id:"J005", company:"アクロス制御システム", industry:"エンジニア", jobType:"制御・電気設計",
+    requireType:"experienced", ageMin:23, ageMax:42, gender:"any", education:"vocational",
+    expYears:3, skills:["CAD操作"], certs:["電気工事士"],
+    workStyle:"area", areas:["東京都","神奈川県"], businessTripOk:true, licenseRequired:false,
+    appeal:"制御盤設計〜プログラムまで一貫対応。資格手当あり。",
+    tips:"電気工事士がなくても「取得意欲」があれば△判定になりやすい求人です。",
+    status:"募集中"
+  },
+  {
+    id:"J006", company:"東海品質パートナーズ", industry:"製造", jobType:"品質管理",
+    requireType:"experienced", ageMin:25, ageMax:45, gender:"any", education:"unquestioned",
+    expYears:3, skills:["品質管理経験"], certs:["QC検定"],
+    workStyle:"commute", areas:["愛知県"], businessTripOk:false, licenseRequired:true,
+    appeal:"品質保証部門への将来的なキャリアパスあり。",
+    tips:"QC検定がなくても品質管理の実務経験があれば相談余地あり。",
+    status:"募集中"
+  },
+  {
+    id:"J007", company:"グランド生産管理センター", industry:"製造", jobType:"生産管理",
+    requireType:"experienced", ageMin:24, ageMax:48, gender:"any", education:"high",
+    expYears:1, skills:["生産管理経験"], certs:[],
+    workStyle:"area", areas:["東京都","埼玉県","茨城県","群馬県"], businessTripOk:true, licenseRequired:true,
+    appeal:"工場の生産計画〜在庫管理まで幅広く担当。将来の管理職候補を募集。",
+    tips:"数値管理・Excel操作の経験があると評価されやすいです。",
+    status:"募集中"
+  },
+  {
+    id:"J008", company:"サウスエリア建装", industry:"施工管理", jobType:"電気施工管理",
+    requireType:"inexperienced", ageMin:18, ageMax:32, gender:"any", education:"unquestoined2",
+    expYears:0, skills:[], certs:[],
+    workStyle:"commute", areas:["大阪府"], businessTripOk:false, licenseRequired:true,
+    appeal:"未経験から施工管理技士を目指せる育成型求人。資格取得費用は全額会社負担。",
+    tips:"長期的なキャリア形成に興味があることを伝えると刺さりやすい。",
+    status:"募集中"
+  },
+  {
+    id:"J009", company:"フィールドワークス機械設計", industry:"エンジニア", jobType:"機械設計",
+    requireType:"experienced", ageMin:22, ageMax:40, gender:"any", education:"university",
+    expYears:5, skills:["CAD操作","英語対応可"], certs:[],
+    workStyle:"nationwide", areas:["全国"], businessTripOk:true, licenseRequired:false,
+    appeal:"海外プラント案件あり。英語を使う設計業務に挑戦したい人向け。",
+    tips:"大卒条件は原則必須ですが、海外経験があれば相談可の場合あり。",
+    status:"募集中"
+  },
+  {
+    id:"J010", company:"北関東製造テクノス", industry:"製造", jobType:"製造オペレーター",
+    requireType:"inexperienced", ageMin:18, ageMax:40, gender:"any", education:"unquestioned",
+    expYears:0, skills:[], certs:[],
+    workStyle:"area", areas:["群馬県","茨城県","埼玉県"], businessTripOk:false, licenseRequired:true,
+    appeal:"大手メーカーの一次請け。安定した長期就業が可能。",
+    tips:"金属加工や製造業での就業経験があれば尚良いが必須ではない。",
+    status:"募集中"
+  },
+];
+// 表記ゆれデータを補正（デモ用のダミータイポを吸収）
+JOBS.forEach(j=>{ if(j.education==="unquestoined2") j.education="unquestioned"; });
+
+/* =========================================================
+   3. ウィザードの状態管理
+========================================================= */
+const state = {
+  step: 1,
+  candidate: {
+    industry:"", jobType:"",
+    age:null, gender:"any", education:"unquestioned", expYears:0,
+    skills:[], certs:[],
+    prefecture:"", station:"",
+    workStyle:"area", hasLicense:false
+  }
+};
+
+const stepperEl = document.getElementById('stepper');
+const cardEl = document.getElementById('wizardCard');
+const resultsEl = document.getElementById('results');
+
+const STEP_LABELS = ["基本属性","プロフィール","勤務条件","確認・検索"];
+
+function renderStepper(){
+  stepperEl.innerHTML = STEP_LABELS.map((label,i)=>{
+    const n = i+1;
+    let cls = '';
+    if(n < state.step) cls = 'done';
+    if(n === state.step) cls = 'active';
+    return `<div class="step-tick ${cls}">
+      <div class="num">${n < state.step ? '✓' : n}</div>
+      <div class="label">${label}</div>
+    </div>`;
+  }).join('');
+}
+
+function optionsHtml(list, selected){
+  return list.map(v=>`<option value="${v}" ${v===selected?'selected':''}>${v}</option>`).join('');
+}
+
+function renderStep(){
+  renderStepper();
+  resultsEl.style.display = 'none';
+  const c = state.candidate;
+
+  if(state.step === 1){
+    cardEl.innerHTML = `
+      <h2>Step 1｜基本属性</h2>
+      <p class="sub">候補者が希望する業種・職種を選んでください。</p>
+      <div class="field">
+        <label class="q">業種</label>
+        <select id="f_industry">
+          <option value="">選択してください</option>
+          ${optionsHtml(INDUSTRIES, c.industry)}
+        </select>
+      </div>
+      <div class="field">
+        <label class="q">職種</label>
+        <select id="f_jobType">
+          <option value="">選択してください</option>
+          ${optionsHtml(JOB_TYPES, c.jobType)}
+        </select>
+      </div>
+      <div class="nav-row">
+        <span></span>
+        <button class="btn primary" id="next1">次へ</button>
+      </div>
+    `;
+    document.getElementById('next1').onclick = ()=>{
+      c.industry = document.getElementById('f_industry').value;
+      c.jobType = document.getElementById('f_jobType').value;
+      if(!c.industry || !c.jobType){ alert('業種と職種を選択してください'); return; }
+      state.step = 2; renderStep();
+    };
+  }
+
+  else if(state.step === 2){
+    cardEl.innerHTML = `
+      <h2>Step 2｜候補者プロフィール</h2>
+      <p class="sub">年齢・経歴・スキルなど、応募要件の基本になる情報です。</p>
+      <div class="grid2">
+        <div class="field">
+          <label class="q">年齢</label>
+          <input type="number" id="f_age" min="18" max="70" value="${c.age ?? ''}" placeholder="例：28">
+        </div>
+        <div class="field">
+          <label class="q">性別</label>
+          <select id="f_gender">
+            <option value="any" ${c.gender==='any'?'selected':''}>不問／回答しない</option>
+            <option value="male" ${c.gender==='male'?'selected':''}>男性</option>
+            <option value="female" ${c.gender==='female'?'selected':''}>女性</option>
+          </select>
+        </div>
+      </div>
+      <div class="grid2">
+        <div class="field">
+          <label class="q">学歴</label>
+          <select id="f_education">
+            ${EDU_LEVELS.map(e=>`<option value="${e.v}" ${c.education===e.v?'selected':''}>${e.label}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field">
+          <label class="q">社歴・経験年数</label>
+          <select id="f_expYears">
+            ${EXP_LEVELS.map(e=>`<option value="${e.v}" ${c.expYears===e.v?'selected':''}>${e.label}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label class="q">経験スキル（該当するものすべて）</label>
+        <div class="check-grid">
+          ${SKILLS.map(s=>`
+            <label class="check-item">
+              <input type="checkbox" value="${s}" ${c.skills.includes(s)?'checked':''} class="chk-skill">
+              ${s}
+            </label>`).join('')}
+        </div>
+      </div>
+      <div class="field">
+        <label class="q">保有資格（該当するものすべて）</label>
+        <div class="check-grid">
+          ${CERTS.map(s=>`
+            <label class="check-item">
+              <input type="checkbox" value="${s}" ${c.certs.includes(s)?'checked':''} class="chk-cert">
+              ${s}
+            </label>`).join('')}
+        </div>
+      </div>
+      <div class="nav-row">
+        <button class="btn" id="back2">戻る</button>
+        <button class="btn primary" id="next2">次へ</button>
+      </div>
+    `;
+    document.getElementById('back2').onclick = ()=>{ saveStep2(); state.step=1; renderStep(); };
+    document.getElementById('next2').onclick = ()=>{
+      saveStep2();
+      if(!c.age){ alert('年齢を入力してください'); return; }
+      state.step = 3; renderStep();
+    };
+    function saveStep2(){
+      c.age = parseInt(document.getElementById('f_age').value) || null;
+      c.gender = document.getElementById('f_gender').value;
+      c.education = document.getElementById('f_education').value;
+      c.expYears = parseInt(document.getElementById('f_expYears').value);
+      c.skills = Array.from(document.querySelectorAll('.chk-skill:checked')).map(el=>el.value);
+      c.certs = Array.from(document.querySelectorAll('.chk-cert:checked')).map(el=>el.value);
+    }
+  }
+
+  else if(state.step === 3){
+    cardEl.innerHTML = `
+      <h2>Step 3｜勤務条件</h2>
+      <p class="sub">希望勤務地と、引っ越し・転勤に対する希望を教えてください。</p>
+      <div class="grid2">
+        <div class="field">
+          <label class="q">希望勤務地（都道府県）</label>
+          <select id="f_pref">
+            <option value="">選択してください</option>
+            ${optionsHtml(PREFS, c.prefecture)}
+          </select>
+        </div>
+        <div class="field">
+          <label class="q">最寄駅</label>
+          <input type="text" id="f_station" value="${c.station}" placeholder="例：新宿駅">
+        </div>
+      </div>
+      <div class="field">
+        <label class="q">引っ越し・転勤について</label>
+        <div class="toggle-group" id="f_workStyle">
+          <div class="toggle-btn ${c.workStyle==='nationwide'?'selected':''}" data-v="nationwide">全国どこでも引っ越せる</div>
+          <div class="toggle-btn ${c.workStyle==='area'?'selected':''}" data-v="area">同じエリア内なら引っ越せる</div>
+          <div class="toggle-btn ${c.workStyle==='commute'?'selected':''}" data-v="commute">今の場所から通いたい</div>
+        </div>
+      </div>
+      <div class="field">
+        <label class="q">普通自動車免許</label>
+        <div class="toggle-group" id="f_license">
+          <div class="toggle-btn ${c.hasLicense===true?'selected':''}" data-v="yes">あり</div>
+          <div class="toggle-btn ${c.hasLicense===false?'selected':''}" data-v="no">なし</div>
+        </div>
+      </div>
+      <div class="nav-row">
+        <button class="btn" id="back3">戻る</button>
+        <button class="btn primary" id="next3">次へ</button>
+      </div>
+    `;
+    bindToggle('f_workStyle');
+    bindToggle('f_license');
+    document.getElementById('back3').onclick = ()=>{ saveStep3(); state.step=2; renderStep(); };
+    document.getElementById('next3').onclick = ()=>{
+      saveStep3();
+      if(!c.prefecture){ alert('希望勤務地を選択してください'); return; }
+      state.step = 4; renderStep();
+    };
+    function saveStep3(){
+      c.prefecture = document.getElementById('f_pref').value;
+      c.station = document.getElementById('f_station').value;
+      const wsSel = document.querySelector('#f_workStyle .toggle-btn.selected');
+      if(wsSel) c.workStyle = wsSel.dataset.v;
+      const licSel = document.querySelector('#f_license .toggle-btn.selected');
+      if(licSel) c.hasLicense = licSel.dataset.v === 'yes';
+    }
+  }
+
+  else if(state.step === 4){
+    const edu = EDU_LEVELS.find(e=>e.v===c.education)?.label || c.education;
+    const exp = EXP_LEVELS.find(e=>e.v===c.expYears)?.label || c.expYears;
+    const genderLabel = {any:"不問／回答しない", male:"男性", female:"女性"}[c.gender];
+    const wsLabel = {nationwide:"全国どこでも引っ越せる", area:"同じエリア内なら引っ越せる", commute:"今の場所から通いたい"}[c.workStyle];
+    cardEl.innerHTML = `
+      <h2>Step 4｜入力内容の確認</h2>
+      <p class="sub">この内容で送客先を検索します。間違いがあれば「戻る」で修正してください。</p>
+      <ul class="confirm-list">
+        <li><span class="k">業種</span>${c.industry}</li>
+        <li><span class="k">職種</span>${c.jobType}</li>
+        <li><span class="k">年齢</span>${c.age}歳</li>
+        <li><span class="k">性別</span>${genderLabel}</li>
+        <li><span class="k">学歴</span>${edu}</li>
+        <li><span class="k">社歴・経験年数</span>${exp}</li>
+        <li><span class="k">経験スキル</span>${c.skills.length? c.skills.join('、'):'なし'}</li>
+        <li><span class="k">保有資格</span>${c.certs.length? c.certs.join('、'):'なし'}</li>
+        <li><span class="k">希望勤務地</span>${c.prefecture}${c.station?'（'+c.station+'）':''}</li>
+        <li><span class="k">引っ越し・転勤</span>${wsLabel}</li>
+        <li><span class="k">運転免許</span>${c.hasLicense?'あり':'なし'}</li>
+      </ul>
+      <div class="nav-row">
+        <button class="btn" id="back4">戻る</button>
+        <button class="btn primary" id="searchBtn">この内容で検索する</button>
+      </div>
+    `;
+    document.getElementById('back4').onclick = ()=>{ state.step=3; renderStep(); };
+    document.getElementById('searchBtn').onclick = runSearch;
+  }
+}
+
+function bindToggle(groupId){
+  const group = document.getElementById(groupId);
+  group.querySelectorAll('.toggle-btn').forEach(btn=>{
+    btn.onclick = ()=>{
+      group.querySelectorAll('.toggle-btn').forEach(b=>b.classList.remove('selected'));
+      btn.classList.add('selected');
+    };
+  });
+}
+
+/* =========================================================
+   4. マッチングロジック
+========================================================= */
+function eduRank(v){ return (EDU_LEVELS.find(e=>e.v===v)||{rank:0}).rank; }
+
+function screening1(cand, job){
+  const warnings = [];
+  let reject = false;
+  let bonus = 0;
+
+  // 年齢
+  if(job.ageMin!=null && cand.age < job.ageMin || job.ageMax!=null && cand.age > job.ageMax){
+    const msg = `年齢条件（${job.ageMin||'-'}〜${job.ageMax||'-'}歳）と不一致`;
+    if(job.requireType==='inexperienced'){ reject = true; } else { warnings.push(msg); }
+  }
+  // 性別
+  if(job.gender!=='any' && cand.gender!=='any' && job.gender!==cand.gender){
+    const msg = `性別条件（${job.gender==='male'?'男性':'女性'}）と不一致`;
+    if(job.requireType==='inexperienced'){ reject = true; } else { warnings.push(msg); }
+  }
+  // 学歴
+  if(eduRank(cand.education) < eduRank(job.education)){
+    const need = EDU_LEVELS.find(e=>e.v===job.education).label;
+    const msg = `学歴条件（${need}）を満たさない`;
+    if(job.requireType==='inexperienced'){ reject = true; } else { warnings.push(msg); }
+  }
+  // 経験年数
+  if(cand.expYears < job.expYears){
+    const need = EXP_LEVELS.find(e=>e.v===job.expYears).label;
+    const msg = `必要経験年数（${need}）を満たさない`;
+    if(job.requireType==='inexperienced'){ reject = true; } else { warnings.push(msg); }
+  }
+  // スキル
+  const missingSkills = job.skills.filter(s=>!cand.skills.includes(s));
+  if(missingSkills.length){
+    const msg = `必要スキル未保有：${missingSkills.join('、')}`;
+    if(job.requireType==='inexperienced'){ reject = true; } else { warnings.push(msg); }
+  } else {
+    bonus += job.skills.length;
+  }
+  // 資格
+  const missingCerts = job.certs.filter(s=>!cand.certs.includes(s));
+  if(missingCerts.length){
+    const msg = `必要資格未保有：${missingCerts.join('、')}`;
+    if(job.requireType==='inexperienced'){ reject = true; } else { warnings.push(msg); }
+  } else {
+    bonus += job.certs.length;
+  }
+  // ボーナス（プラスアルファの一致）
+  bonus += cand.skills.filter(s=>!job.skills.includes(s) && SKILLS.includes(s)).length ? 0 : 0; // 拡張余地
+
+  return { reject, warnings, bonus };
+}
+
+function matchWorkStyle(cand, job){
+  const areaMatch = job.areas.includes('全国') || job.areas.includes(cand.prefecture);
+
+  if(job.workStyle === 'nationwide'){
+    if(cand.workStyle === 'nationwide') return {tier:'ok', reason:'全国転勤希望のため条件に合致'};
+    if(cand.workStyle === 'area') return {tier:'warn', reason:'全国転勤必須の求人。エリア限定希望のため要相談'};
+    if(cand.hasLicense && job.businessTripOk) return {tier:'warn', reason:'運転免許あり＋出張対応可の求人のため要相談'};
+    return {tier:'ng', reason:'全国転勤必須のため対象外'};
+  }
+  if(job.workStyle === 'area'){
+    if(cand.workStyle === 'nationwide') return {tier:'ok', reason:'全国転勤可のため対応エリア内で送客可能'};
+    if(areaMatch) return {tier:'ok', reason:'希望勤務地が対応エリア内'};
+    if(cand.hasLicense && job.businessTripOk) return {tier:'warn', reason:'対応エリア外だが、免許＋出張対応可のため要相談'};
+    return {tier:'ng', reason:'対応エリア外のため対象外'};
+  }
+  // commute
+  if(areaMatch) return {tier:'ok', reason:'通勤圏内のため条件に合致'};
+  if(cand.hasLicense && job.businessTripOk) return {tier:'warn', reason:'通勤圏外だが、免許＋出張対応可のため要相談'};
+  return {tier:'ng', reason:'通勤圏外のため対象外'};
+}
+
+function getNearMissSuggestion(cand, job){
+  if(!cand.hasLicense && job.businessTripOk){
+    return '運転免許を取得・保有していれば、出張対応で送客できる可能性があります';
+  }
+  if(cand.workStyle === 'commute' && job.workStyle !== 'commute'){
+    return '希望エリアを少し広げてもらえれば、送客できる可能性があります';
+  }
+  return null;
+}
+
+function evaluate(cand, job){
+  if(job.industry !== cand.industry) return {tier:'exclude'};
+  const s1 = screening1(cand, job);
+  if(s1.reject) return {tier:'exclude'};
+
+  const ws = matchWorkStyle(cand, job);
+
+  if(s1.warnings.length === 0 && ws.tier === 'ok'){
+    return {tier:'ok', reasons:[], score:s1.bonus, job};
+  }
+  if(ws.tier === 'ng'){
+    if(s1.warnings.length === 0){
+      const suggestion = getNearMissSuggestion(cand, job);
+      if(suggestion) return {tier:'near', reasons:[suggestion], score:s1.bonus, job};
+    }
+    return {tier:'exclude'};
+  }
+  const reasons = [...s1.warnings];
+  if(ws.tier === 'warn') reasons.push(ws.reason);
+  return {tier:'warn', reasons, score:s1.bonus, job};
+}
+
+function runSearch(){
+  const cand = state.candidate;
+  const activeJobs = JOBS.filter(j=>j.status==='募集中');
+  const results = activeJobs.map(j=>evaluate(cand, j)).filter(r=>r.tier!=='exclude');
+
+  const ok = results.filter(r=>r.tier==='ok').sort((a,b)=>b.score-a.score);
+  const warn = results.filter(r=>r.tier==='warn').sort((a,b)=>b.score-a.score);
+  const near = results.filter(r=>r.tier==='near').sort((a,b)=>b.score-a.score);
+
+  renderResults(ok, warn, near);
+}
+
+/* =========================================================
+   5. 結果表示
+========================================================= */
+function resultCard(r, badgeClass, badgeSymbol){
+  const j = r.job;
+  return `
+    <div class="result-card ${badgeClass==='ok'?'ok':badgeClass==='warn'?'warn':'near'}">
+      <div class="result-top">
+        <div>
+          <div class="company">${j.company}</div>
+          <div class="meta">${j.industry}／${j.jobType}｜${j.workStyle==='nationwide'?'全国転勤あり':j.workStyle==='area'?'エリア内転勤':'通勤圏内のみ'}｜対応エリア：${j.areas.join('、')}</div>
+        </div>
+        <div class="badge ${badgeClass}">${badgeSymbol}</div>
+      </div>
+      ${r.reasons.length? `<ul class="reasons">${r.reasons.map(x=>`<li>${x}</li>`).join('')}</ul>` : ''}
+      <details class="more">
+        <summary>訴求ポイント・応募承諾のコツを見る</summary>
+        <div class="more-body">
+          <p><strong>訴求ポイント：</strong>${j.appeal}</p>
+          <p><strong>承諾のコツ：</strong>${j.tips}</p>
+        </div>
+      </details>
+    </div>
+  `;
+}
+
+function renderResults(ok, warn, near){
+  let html = '';
+
+  html += `<div class="result-section-title"><span class="badge ok">◎</span>送客可能（${ok.length}社）</div>`;
+  html += ok.length ? ok.map(r=>resultCard(r,'ok','◎')).join('') : `<div class="empty">条件に完全一致する企業はありませんでした</div>`;
+
+  html += `<div class="result-section-title"><span class="badge warn">△</span>要相談（${warn.length}社）</div>`;
+  html += warn.length ? warn.map(r=>resultCard(r,'warn','△')).join('') : `<div class="empty">該当する企業はありませんでした</div>`;
+
+  html += `<div class="result-section-title"><span class="badge near">?</span>惜しい企業（条件を少し変えれば送客可能かも）（${near.length}社）</div>`;
+  html += near.length ? near.map(r=>resultCard(r,'near','?')).join('') : `<div class="empty">該当する企業はありませんでした</div>`;
+
+  resultsEl.innerHTML = html;
+  resultsEl.style.display = 'block';
+  resultsEl.scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+renderStep();
+</script>
+</body>
+</html>
